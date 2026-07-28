@@ -1,0 +1,59 @@
+# =============================================================================
+# wah gwaan — cloud auto-scrape (activates the moment this folder is pushed
+# to a GitHub repo with Pages enabled).
+#
+# Every 6 hours: run the aggregation pipeline, publish events.json to GitHub
+# Pages. The app then syncs fresh data on every launch with zero PC involved.
+# Feed URL becomes:  https://<user>.github.io/<repo>/events.json
+# — set that (with trailing slash on the directory) as FEED_BASE_URL.
+# =============================================================================
+name: Scrape and publish events feed
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"     # every 6 hours
+  workflow_dispatch: {}        # manual "Run workflow" button
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml pandas python-dateutil openpyxl rapidfuzz
+
+      - name: Run aggregation pipeline
+        run: python comprehensive_bahamas_scraper.py --delay 2.0
+
+      - name: Stage feed for Pages
+        run: |
+          mkdir -p _site
+          cp New_Providence_Events.json _site/events.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: scrape
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

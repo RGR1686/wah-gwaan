@@ -1,0 +1,28 @@
+# Generated pipeline outputs (recreated by every scrape)
+New_Providence_Events.xlsx
+New_Providence_Events.csv
+New_Providence_Events.json
+New_Providence_Events_2026.*
+smoke_test.*
+*.audit.md
+scrape_and_publish.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local/session junk
+.claude/
+context/
+*.log
+.handoff.md
+device.db*
+screen*.png
+
+# Android build outputs live outside the repo (see wah_gwaan/build.gradle.kts),
+# but belt-and-braces:
+wah_gwaan/build/
+wah_gwaan/app/build/
+wah_gwaan/.gradle/
+wah_gwaan/local.properties
