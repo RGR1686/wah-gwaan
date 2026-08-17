@@ -18,6 +18,8 @@ import androidx.core.util.Consumer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.outlined.Celebration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -99,13 +101,21 @@ fun WahGwaanNavHost() {
                     NavigationBarItem(
                         selected = currentRoute == Routes.FEED,
                         onClick = { navController.navigateTab(Routes.FEED) },
-                        icon = { Icon(Icons.Default.Celebration, null) },
+                        icon = {
+                            Icon(
+                                if (currentRoute == Routes.FEED) Icons.Default.Celebration
+                                else Icons.Outlined.Celebration, null)
+                        },
                         label = { Text("Events") },
                     )
                     NavigationBarItem(
                         selected = currentRoute == Routes.SAVED,
                         onClick = { navController.navigateTab(Routes.SAVED) },
-                        icon = { Icon(Icons.Default.Favorite, null) },
+                        icon = {
+                            Icon(
+                                if (currentRoute == Routes.SAVED) Icons.Default.Favorite
+                                else Icons.Default.FavoriteBorder, null)
+                        },
                         label = { Text("Saved") },
                     )
                 }

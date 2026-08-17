@@ -93,6 +93,8 @@ class FeedViewModel @Inject constructor(
 
     fun setKeyword(keyword: String) = filters.update { it.copy(keyword = keyword) }
 
+    fun clearFilters() { filters.value = FilterState() }
+
     /** Called on every foreground resume: cheap freshness without hammering
      *  the feed host every time the user flips apps. */
     fun refreshIfStale(maxAgeMinutes: Long = 30) {

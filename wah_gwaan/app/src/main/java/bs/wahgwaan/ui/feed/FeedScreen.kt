@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocationOn
@@ -28,18 +31,19 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -50,11 +54,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.InputChip
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,7 +68,9 @@ import bs.wahgwaan.model.DateRangeFilter
 import bs.wahgwaan.model.Event
 import bs.wahgwaan.model.EventCategory
 import bs.wahgwaan.model.LocationFilter
+import bs.wahgwaan.ui.theme.AquaDeep
 import bs.wahgwaan.ui.theme.accent
+import bs.wahgwaan.ui.theme.emoji
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -94,18 +101,9 @@ fun FeedScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text("wah gwaan", fontWeight = FontWeight.Black) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                actions = {
-                    IconButton(onClick = { showLocationSearch = true }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search location")
-                    }
-                },
+            FeedHeader(
+                lastSyncEpochMs = state.lastSyncEpochMs,
+                onSearchClick = { showLocationSearch = true },
             )
         },
     ) { padding ->
@@ -121,14 +119,13 @@ fun FeedScreen(
                 onCategoryToggle = viewModel::toggleCategory,
                 onClearKeyword = { viewModel.setKeyword("") },
             )
-            FreshnessLine(state.lastSyncEpochMs)
             PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
                 onRefresh = viewModel::refresh,
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (state.events.isEmpty() && !state.isRefreshing) {
-                    EmptyState()
+                    EmptyState(onClearFilters = viewModel::clearFilters)
                 } else {
                     EventList(
                         events = state.events,
@@ -162,10 +159,49 @@ fun FeedScreen(
     }
 }
 
+/** Branded gradient masthead: wordmark, freshness, and search — the gradient
+ *  runs under the status bar for a full edge-to-edge header. */
 @Composable
-private fun FreshnessLine(lastSyncEpochMs: Long) {
-    // Re-evaluate each minute so "Updated 2 min ago" doesn't freeze while
-    // the screen stays open.
+private fun FeedHeader(lastSyncEpochMs: Long, onSearchClick: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(AquaDeep, MaterialTheme.colorScheme.primary))),
+    ) {
+        Row(
+            Modifier
+                .statusBarsPadding()
+                .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "wah gwaan 🇧🇸",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                )
+                Text(
+                    freshnessLabel(lastSyncEpochMs),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.75f),
+                )
+            }
+            IconButton(onClick = onSearchClick) {
+                Icon(Icons.Default.Search, contentDescription = "Search",
+                    tint = Color.White)
+            }
+        }
+    }
+}
+
+/** Re-evaluates each minute so "Updated 2 min ago" doesn't freeze while the
+ *  screen stays open. */
+@Composable
+private fun freshnessLabel(lastSyncEpochMs: Long): String {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(lastSyncEpochMs) {
         while (true) {
@@ -173,22 +209,14 @@ private fun FreshnessLine(lastSyncEpochMs: Long) {
             kotlinx.coroutines.delay(60_000)
         }
     }
-    val label = if (lastSyncEpochMs == 0L) "Not synced yet — pull to refresh"
-    else {
-        val mins = (now - lastSyncEpochMs) / 60_000
-        when {
-            mins < 1 -> "Updated just now"
-            mins < 60 -> "Updated $mins min ago"
-            mins < 60 * 24 -> "Updated ${mins / 60}h ago"
-            else -> "Updated ${mins / (60 * 24)}d ago"
-        }
+    if (lastSyncEpochMs == 0L) return "Not synced yet — pull to refresh"
+    val mins = (now - lastSyncEpochMs) / 60_000
+    return when {
+        mins < 1 -> "Updated just now"
+        mins < 60 -> "Updated $mins min ago"
+        mins < 60 * 24 -> "Updated ${mins / 60}h ago"
+        else -> "Updated ${mins / (60 * 24)}d ago"
     }
-    Text(
-        label,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
-    )
 }
 
 @Composable
@@ -251,16 +279,16 @@ private fun FilterBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(EventCategory.entries.filter { it != EventCategory.UNKNOWN }) { cat ->
+                val selected = cat in filters.categories
                 FilterChip(
-                    selected = cat in filters.categories,
+                    selected = selected,
                     onClick = { onCategoryToggle(cat) },
                     label = { Text(cat.label) },
-                    leadingIcon = {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .background(cat.accent, CircleShape))
-                    },
+                    leadingIcon = { Text(cat.emoji, fontSize = 14.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = cat.accent.copy(alpha = 0.18f),
+                        selectedLabelColor = cat.accent,
+                    ),
                 )
             }
         }
@@ -286,8 +314,8 @@ private fun EventList(
     onEventClick: (String) -> Unit,
     onToggleFavorite: (Event) -> Unit,
 ) {
-    val headerFmt = remember { DateTimeFormatter.ofPattern("EEEE, MMMM d") }
     val grouped = remember(events) { events.groupBy { it.date } }
+    val today = remember(events) { LocalDate.now() }
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             horizontal = 12.dp, vertical = 8.dp),
@@ -295,19 +323,45 @@ private fun EventList(
     ) {
         grouped.forEach { (date, dayEvents) ->
             item(key = "header-$date") {
-                Text(
-                    date.format(headerFmt),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
-                )
+                DayHeader(date, today, dayEvents.size)
             }
             items(dayEvents, key = { it.id }) { event ->
                 EventCard(event, onClick = { onEventClick(event.id) },
                     onToggleFavorite = { onToggleFavorite(event) })
             }
         }
+    }
+}
+
+@Composable
+private fun DayHeader(date: LocalDate, today: LocalDate, count: Int) {
+    val fmt = remember { DateTimeFormatter.ofPattern("EEEE, MMMM d") }
+    val label = when (date) {
+        today -> "Today"
+        today.plusDays(1) -> "Tomorrow"
+        else -> date.format(fmt)
+    }
+    Row(
+        Modifier.padding(top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (count == 1) "1 event" else "$count events",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline,
+        )
     }
 }
 
@@ -326,8 +380,12 @@ fun EventCard(
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(10.dp, 44.dp)
-                    .background(event.category.accent, RoundedCornerShape(5.dp)))
+                    .size(46.dp)
+                    .background(event.category.accent.copy(alpha = 0.16f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(event.category.emoji, fontSize = 21.sp)
+            }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(event.name,
@@ -344,16 +402,26 @@ fun EventCard(
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Spacer(Modifier.height(5.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     event.timeStart?.let {
-                        Text(it.format(DateTimeFormatter.ofPattern("h:mm a")),
-                            style = MaterialTheme.typography.labelMedium)
+                        InfoPill(
+                            it.format(DateTimeFormatter.ofPattern("h:mm a")),
+                            container = MaterialTheme.colorScheme.surfaceVariant,
+                            content = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     if (event.priceLabel.isNotBlank()) {
-                        Text(event.priceLabel,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.SemiBold)
+                        val free = event.priceLabel == "Free"
+                        InfoPill(
+                            event.priceLabel,
+                            container = if (free)
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            else MaterialTheme.colorScheme.secondaryContainer,
+                            content = if (free)
+                                MaterialTheme.colorScheme.onTertiaryContainer
+                            else MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
                     }
                 }
             }
@@ -362,7 +430,7 @@ fun EventCard(
                     if (event.isSaved) Icons.Default.Favorite
                     else Icons.Default.FavoriteBorder,
                     contentDescription = if (event.isSaved) "Unsave" else "Save",
-                    tint = if (event.isSaved) MaterialTheme.colorScheme.secondary
+                    tint = if (event.isSaved) MaterialTheme.colorScheme.tertiary
                     else MaterialTheme.colorScheme.outline,
                 )
             }
@@ -371,7 +439,17 @@ fun EventCard(
 }
 
 @Composable
-private fun EmptyState() {
+private fun InfoPill(text: String, container: Color, content: Color) {
+    Surface(color = container, contentColor = content,
+        shape = RoundedCornerShape(50)) {
+        Text(text,
+            Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun EmptyState(onClearFilters: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("🏝️", style = MaterialTheme.typography.displayMedium)
@@ -380,6 +458,8 @@ private fun EmptyState() {
             Text("Try widening the date range or island",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onClearFilters) { Text("Clear all filters") }
         }
     }
 }

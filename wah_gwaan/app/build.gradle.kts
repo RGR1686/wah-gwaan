@@ -15,8 +15,8 @@ android {
         applicationId = "bs.wahgwaan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
 
         // Point this at wherever the ETL pipeline publishes events.json
         // (GitHub Pages / Cloudflare Pages / Firebase Hosting). The path is
