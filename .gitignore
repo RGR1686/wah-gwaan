@@ -26,3 +26,6 @@ wah_gwaan/build/
 wah_gwaan/app/build/
 wah_gwaan/.gradle/
 wah_gwaan/local.properties
+
+# FIE bookkeeping (machine-local paths)
+.fie_state.json
