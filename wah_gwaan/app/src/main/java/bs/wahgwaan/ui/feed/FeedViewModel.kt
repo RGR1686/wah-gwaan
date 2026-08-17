@@ -112,6 +112,8 @@ class FeedViewModel @Inject constructor(
             syncError.value = null
             try {
                 repository.refresh()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e   // scope teardown, not a network failure
             } catch (e: Exception) {
                 syncError.value = "Offline — showing cached events"
             } finally {

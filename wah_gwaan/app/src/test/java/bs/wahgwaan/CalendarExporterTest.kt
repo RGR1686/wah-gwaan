@@ -63,4 +63,21 @@ class CalendarExporterTest {
         assertTrue(ics.contains("UID:abc123@wahgwaan.bs"))
         assertTrue(ics.trimEnd().endsWith("END:VCALENDAR"))
     }
+
+    @Test fun `content lines are CRLF terminated, never bare LF`() {
+        val ics = CalendarExporter.buildIcs(event())
+        assertTrue(ics.contains("\r\n"))
+        assertFalse(ics.replace("\r\n", "").contains("\n"))
+    }
+
+    @Test fun `long lines fold at 75 octets with space continuations`() {
+        val longDesc = "Junkanoo rush-out with rake and scrape band, food stalls, " +
+            "conch salad on the spot, kids corner, fireworks over the harbour " +
+            "and a whole heap of vibes until the early morning hours."
+        val ics = CalendarExporter.buildIcs(
+            event().copy(description = longDesc))
+        val lines = ics.split("\r\n")
+        assertTrue(lines.all { it.length <= 75 })
+        assertTrue(lines.any { it.startsWith(" ") })   // continuation present
+    }
 }

@@ -18,6 +18,9 @@ $log = Join-Path $here "scrape_and_publish.log"
 try {
     python "$here\comprehensive_bahamas_scraper.py" --delay 1.5 2>&1 |
         Add-Content $log
+    if ($LASTEXITCODE -ne 0) {
+        throw "Scraper exit $LASTEXITCODE (floor breach or hard failure) - see $log"
+    }
 
     $feedSrc = Join-Path $here "New_Providence_Events.json"
     if (-not (Test-Path $feedSrc)) { throw "Feed JSON not produced" }
@@ -39,5 +42,10 @@ try {
     "=== Scrape finished OK $(Get-Date -Format o) ===" | Add-Content $log
 } catch {
     "=== Scrape FAILED: $_ ===" | Add-Content $log
+    # Push a phone alert when FIE notify infra is present (status text only).
+    $notify = "C:\Users\rhanrichardson\OneDrive - National Health Insurance Authority\Documents\AI_Workspaces\_FIE\Notify.ps1"
+    if (Test-Path $notify) {
+        try { & $notify -Title "wah gwaan scrape FAILED" -Message "$_" -Priority high } catch {}
+    }
     throw
 }

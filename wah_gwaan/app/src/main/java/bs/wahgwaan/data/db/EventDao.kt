@@ -67,12 +67,15 @@ interface EventDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(events: List<EventEntity>)
 
-    @Query("DELETE FROM events WHERE id NOT IN (:keepIds)")
-    suspend fun deleteAllExcept(keepIds: List<String>)
+    @Query("DELETE FROM events")
+    suspend fun deleteAllEvents()
 
+    // Delete-then-insert (not NOT IN (:ids)) on purpose: binding one SQLite
+    // variable per id hits the 999-variable cap once the two-year feed grows.
+    // Favorites live in their own table, so a full replace loses nothing.
     @Transaction
     suspend fun replaceFeed(events: List<EventEntity>) {
+        deleteAllEvents()
         upsertAll(events)
-        deleteAllExcept(events.map { it.id })
     }
 }

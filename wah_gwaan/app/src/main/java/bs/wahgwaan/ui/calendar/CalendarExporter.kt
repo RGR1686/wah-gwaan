@@ -125,35 +125,51 @@ object CalendarExporter {
         }
     }
 
+    /** RFC 5545 §3.1: content lines are CRLF-terminated and folded at 75
+     *  octets, continuations prefixed with a space. Strict importers
+     *  (desktop Outlook, Apple Calendar) are exactly who this export is for. */
+    private fun fold(line: String): String {
+        if (line.length <= 74) return line
+        return buildString {
+            append(line.take(74))
+            var rest = line.drop(74)
+            while (rest.isNotEmpty()) {
+                append("\r\n ").append(rest.take(73))
+                rest = rest.drop(73)
+            }
+        }
+    }
+
     internal fun buildIcs(event: Event): String {
         fun esc(s: String) = s.replace("\\", "\\\\").replace(";", "\\;")
             .replace(",", "\\,").replace("\n", "\\n")
         val nowUtc = ZonedDateTime.now(ZoneId.of("UTC"))
-        return buildString {
-            appendLine("BEGIN:VCALENDAR")
-            appendLine("VERSION:2.0")
-            appendLine("PRODID:-//wah gwaan//Events//EN")
-            appendLine("METHOD:PUBLISH")
-            appendLine("BEGIN:VEVENT")
-            appendLine("UID:${event.id}@wahgwaan.bs")
-            appendLine("DTSTAMP:${nowUtc.format(UTC_STAMP)}")
+        val lines = buildList {
+            add("BEGIN:VCALENDAR")
+            add("VERSION:2.0")
+            add("PRODID:-//wah gwaan//Events//EN")
+            add("METHOD:PUBLISH")
+            add("BEGIN:VEVENT")
+            add("UID:${event.id}@wahgwaan.bs")
+            add("DTSTAMP:${nowUtc.format(UTC_STAMP)}")
             if (event.timeStart == null) {
                 // RFC 5545 all-day: date values, DTEND exclusive.
                 val basic = DateTimeFormatter.BASIC_ISO_DATE
-                appendLine("DTSTART;VALUE=DATE:${event.date.format(basic)}")
-                appendLine("DTEND;VALUE=DATE:${event.date.plusDays(1).format(basic)}")
+                add("DTSTART;VALUE=DATE:${event.date.format(basic)}")
+                add("DTEND;VALUE=DATE:${event.date.plusDays(1).format(basic)}")
             } else {
                 val startUtc = startOf(event).withZoneSameInstant(ZoneId.of("UTC"))
                 val endUtc = endOf(event).withZoneSameInstant(ZoneId.of("UTC"))
-                appendLine("DTSTART:${startUtc.format(UTC_STAMP)}")
-                appendLine("DTEND:${endUtc.format(UTC_STAMP)}")
+                add("DTSTART:${startUtc.format(UTC_STAMP)}")
+                add("DTEND:${endUtc.format(UTC_STAMP)}")
             }
-            appendLine("SUMMARY:${esc(event.name)}")
-            if (event.venue.isNotBlank()) appendLine("LOCATION:${esc(event.venue)}")
-            appendLine("DESCRIPTION:${esc(bodyOf(event))}")
-            if (event.sourceUrl.isNotBlank()) appendLine("URL:${esc(event.sourceUrl)}")
-            appendLine("END:VEVENT")
-            appendLine("END:VCALENDAR")
+            add("SUMMARY:${esc(event.name)}")
+            if (event.venue.isNotBlank()) add("LOCATION:${esc(event.venue)}")
+            add("DESCRIPTION:${esc(bodyOf(event))}")
+            if (event.sourceUrl.isNotBlank()) add("URL:${esc(event.sourceUrl)}")
+            add("END:VEVENT")
+            add("END:VCALENDAR")
         }
+        return lines.joinToString("\r\n", postfix = "\r\n") { fold(it) }
     }
 }

@@ -69,7 +69,7 @@ class ReminderWorker @AssistedInject constructor(
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val timeBit = event.timeStart?.let { " at ${it.format(timeFmt)}" } ?: ""
             val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_menu_my_calendar)
+                .setSmallIcon(bs.wahgwaan.R.drawable.ic_stat_wahgwaan)
                 .setContentTitle("Tomorrow: ${event.name}")
                 .setContentText("${event.venue.ifBlank { "Nassau" }}$timeBit 🎉")
                 .setContentIntent(tap)

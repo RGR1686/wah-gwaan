@@ -1822,6 +1822,20 @@ def run_pipeline(args: argparse.Namespace) -> int:
     print(f" Records parked for review  : {len(review)}")
     print(f" Workbook: {os.path.join(out_dir, args.output + '.xlsx')}")
     print("=" * 62)
+
+    # Dead-man's switch: per-source error isolation means a broken parser
+    # exits 0 with an empty payload — the floor makes that failure loud so
+    # a stale feed can't ship silently for weeks.
+    zero_sources = [s.name for s in statuses if s.ok and s.events_found == 0]
+    if zero_sources:
+        logging.warning("Sources returning ZERO events: %s",
+                        ", ".join(zero_sources))
+    if len(master) < args.min_events:
+        logging.error(
+            "FLOOR BREACH: only %d event(s) exported (floor %d) — refusing "
+            "to bless this run. Feed files were still written for inspection.",
+            len(master), args.min_events)
+        return 2
     return 0
 
 
@@ -1850,6 +1864,9 @@ def main() -> int:
     ap.add_argument("--strict-island", action="store_true",
                     help="Hard-drop events confidently on other islands "
                          "(default: park them in Needs Review)")
+    ap.add_argument("--min-events", type=int, default=15,
+                    help="Exit 2 if fewer unique events are exported "
+                         "(dead-man's switch for silent scraper decay)")
     ap.add_argument("--verbose", "-v", action="store_true",
                     help="Debug logging")
     args = ap.parse_args()

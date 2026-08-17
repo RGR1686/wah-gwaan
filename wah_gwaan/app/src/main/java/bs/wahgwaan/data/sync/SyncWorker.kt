@@ -26,6 +26,8 @@ class SyncWorker @AssistedInject constructor(
     override suspend fun doWork(): Result = try {
         repository.refresh()
         Result.success()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e   // cancellation is not a sync failure — let WorkManager own it
     } catch (e: Exception) {
         if (runAttemptCount < 3) Result.retry() else Result.failure()
     }

@@ -34,7 +34,11 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 lxml pandas python-dateutil openpyxl rapidfuzz
+        run: |
+          pip install requests beautifulsoup4 lxml pandas python-dateutil openpyxl rapidfuzz playwright
+          # Bandsintown sits behind Cloudflare — without a real browser the
+          # source silently yields zero events.
+          playwright install --with-deps chromium
 
       - name: Run aggregation pipeline
         run: python comprehensive_bahamas_scraper.py --delay 2.0
