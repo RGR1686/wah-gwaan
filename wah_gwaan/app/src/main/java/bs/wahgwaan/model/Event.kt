@@ -2,6 +2,7 @@ package bs.wahgwaan.model
 
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.Locale
 
 /** Canonical domain event — the app's single vocabulary for an event,
  *  mapped 1:1 from the ETL pipeline's standardized record. */
@@ -32,7 +33,8 @@ data class Event(
         }
 
     private fun trim(v: Double): String =
-        if (v == v.toLong().toDouble()) v.toLong().toString() else "%.2f".format(v)
+        if (v == v.toLong().toDouble()) v.toLong().toString()
+        else String.format(Locale.US, "%.2f", v)   // BSD prices: always dot-decimal
 }
 
 /** Mirrors the ETL pipeline's category taxonomy. UNKNOWN absorbs any new

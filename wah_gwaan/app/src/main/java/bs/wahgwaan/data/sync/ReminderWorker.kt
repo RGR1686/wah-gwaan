@@ -21,7 +21,9 @@ import bs.wahgwaan.data.db.EventDao
 import bs.wahgwaan.data.db.toDomain
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
@@ -56,10 +58,14 @@ class ReminderWorker @AssistedInject constructor(
             })
 
         val timeFmt = DateTimeFormatter.ofPattern("h:mm a")
-        events.forEachIndexed { index, event ->
+        events.forEach { event ->
+            // Explicit to this app: the wahgwaan:// scheme must never resolve
+            // into another app's intent filter from a notification tap.
+            val view = Intent(Intent.ACTION_VIEW,
+                Uri.parse("wahgwaan://event/${event.id}"))
+                .setPackage(applicationContext.packageName)
             val tap = PendingIntent.getActivity(
-                applicationContext, index,
-                Intent(Intent.ACTION_VIEW, Uri.parse("wahgwaan://event/${event.id}")),
+                applicationContext, event.id.hashCode(), view,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val timeBit = event.timeStart?.let { " at ${it.format(timeFmt)}" } ?: ""
             val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
@@ -78,9 +84,15 @@ class ReminderWorker @AssistedInject constructor(
         private const val CHANNEL_ID = "event-reminders"
         private const val UNIQUE_NAME = "saved-event-reminders"
 
+        /** Reminders belong in the early evening, not whatever hour the app
+         *  first launched — anchor the first run to the next 6 PM local. */
         fun schedule(context: Context) {
+            val now = LocalDateTime.now()
+            var firstRun = now.toLocalDate().atTime(18, 0)
+            if (!firstRun.isAfter(now)) firstRun = firstRun.plusDays(1)
             val request = PeriodicWorkRequestBuilder<ReminderWorker>(24, TimeUnit.HOURS)
-                .setInitialDelay(1, TimeUnit.HOURS)
+                .setInitialDelay(
+                    Duration.between(now, firstRun).toMinutes(), TimeUnit.MINUTES)
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 UNIQUE_NAME, ExistingPeriodicWorkPolicy.KEEP, request)

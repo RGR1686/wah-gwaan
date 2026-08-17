@@ -164,16 +164,23 @@ fun FeedScreen(
 
 @Composable
 private fun FreshnessLine(lastSyncEpochMs: Long) {
-    val label = remember(lastSyncEpochMs) {
-        if (lastSyncEpochMs == 0L) "Not synced yet — pull to refresh"
-        else {
-            val mins = (System.currentTimeMillis() - lastSyncEpochMs) / 60_000
-            when {
-                mins < 1 -> "Updated just now"
-                mins < 60 -> "Updated $mins min ago"
-                mins < 60 * 24 -> "Updated ${mins / 60}h ago"
-                else -> "Updated ${mins / (60 * 24)}d ago"
-            }
+    // Re-evaluate each minute so "Updated 2 min ago" doesn't freeze while
+    // the screen stays open.
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lastSyncEpochMs) {
+        while (true) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    val label = if (lastSyncEpochMs == 0L) "Not synced yet — pull to refresh"
+    else {
+        val mins = (now - lastSyncEpochMs) / 60_000
+        when {
+            mins < 1 -> "Updated just now"
+            mins < 60 -> "Updated $mins min ago"
+            mins < 60 * 24 -> "Updated ${mins / 60}h ago"
+            else -> "Updated ${mins / (60 * 24)}d ago"
         }
     }
     Text(

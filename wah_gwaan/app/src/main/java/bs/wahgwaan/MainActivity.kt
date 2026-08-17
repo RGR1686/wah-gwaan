@@ -1,6 +1,7 @@
 package bs.wahgwaan
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,9 +10,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.core.util.Consumer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.Favorite
@@ -75,6 +78,16 @@ private fun RequestNotificationPermission() {
 fun WahGwaanNavHost() {
     RequestNotificationPermission()
     val navController = rememberNavController()
+
+    // singleTop delivery: a wahgwaan:// tap while the app is already open
+    // arrives via onNewIntent, which NavController does not see by itself.
+    val activity = LocalContext.current as? ComponentActivity
+    DisposableEffect(navController, activity) {
+        val listener = Consumer<Intent> { navController.handleDeepLink(it) }
+        activity?.addOnNewIntentListener(listener)
+        onDispose { activity?.removeOnNewIntentListener(listener) }
+    }
+
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBottomBar = currentRoute == Routes.FEED || currentRoute == Routes.SAVED

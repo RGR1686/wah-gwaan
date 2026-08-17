@@ -6,10 +6,12 @@ import android.net.Uri
 import android.provider.CalendarContract
 import androidx.core.content.FileProvider
 import bs.wahgwaan.model.Event
+import android.content.ClipData
 import java.io.File
 import java.net.URLEncoder
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -62,12 +64,20 @@ object CalendarExporter {
             putExtra(CalendarContract.Events.DESCRIPTION, bodyOf(event))
             putExtra(CalendarContract.Events.EVENT_TIMEZONE, NASSAU.id)
             if (event.timeStart == null) {
+                // CalendarProvider reads all-day begin/end as UTC midnights;
+                // Nassau-midnight epochs would land the entry a day off.
+                val dayUtc = event.date.atStartOfDay(ZoneOffset.UTC)
                 putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, true)
+                putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME,
+                    dayUtc.toInstant().toEpochMilli())
+                putExtra(CalendarContract.EXTRA_EVENT_END_TIME,
+                    dayUtc.plusDays(1).toInstant().toEpochMilli())
+            } else {
+                putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME,
+                    startOf(event).toInstant().toEpochMilli())
+                putExtra(CalendarContract.EXTRA_EVENT_END_TIME,
+                    endOf(event).toInstant().toEpochMilli())
             }
-            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME,
-                startOf(event).toInstant().toEpochMilli())
-            putExtra(CalendarContract.EXTRA_EVENT_END_TIME,
-                endOf(event).toInstant().toEpochMilli())
         }
 
     // ── 2. Outlook deep link (work/school + personal variants) ─────────────
@@ -80,8 +90,14 @@ object CalendarExporter {
             append("/calendar/0/deeplink/compose")
             append("?path=/calendar/action/compose&rru=addevent")
             append("&subject=").append(enc(event.name))
-            append("&startdt=").append(enc(startOf(event).toLocalDateTime().format(ISO_LOCAL)))
-            append("&enddt=").append(enc(endOf(event).toLocalDateTime().format(ISO_LOCAL)))
+            if (event.timeStart == null) {
+                append("&startdt=").append(event.date)
+                append("&enddt=").append(event.date.plusDays(1))
+                append("&allday=true")
+            } else {
+                append("&startdt=").append(enc(startOf(event).toLocalDateTime().format(ISO_LOCAL)))
+                append("&enddt=").append(enc(endOf(event).toLocalDateTime().format(ISO_LOCAL)))
+            }
             append("&location=").append(enc(event.venue))
             append("&body=").append(enc(bodyOf(event)))
         }
@@ -102,6 +118,9 @@ object CalendarExporter {
             type = "text/calendar"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, event.name)
+            // ClipData carries the grant through Intent.createChooser;
+            // the flag alone doesn't survive the chooser on all targets.
+            clipData = ClipData.newRawUri(null, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
@@ -109,8 +128,6 @@ object CalendarExporter {
     internal fun buildIcs(event: Event): String {
         fun esc(s: String) = s.replace("\\", "\\\\").replace(";", "\\;")
             .replace(",", "\\,").replace("\n", "\\n")
-        val startUtc = startOf(event).withZoneSameInstant(ZoneId.of("UTC"))
-        val endUtc = endOf(event).withZoneSameInstant(ZoneId.of("UTC"))
         val nowUtc = ZonedDateTime.now(ZoneId.of("UTC"))
         return buildString {
             appendLine("BEGIN:VCALENDAR")
@@ -120,8 +137,17 @@ object CalendarExporter {
             appendLine("BEGIN:VEVENT")
             appendLine("UID:${event.id}@wahgwaan.bs")
             appendLine("DTSTAMP:${nowUtc.format(UTC_STAMP)}")
-            appendLine("DTSTART:${startUtc.format(UTC_STAMP)}")
-            appendLine("DTEND:${endUtc.format(UTC_STAMP)}")
+            if (event.timeStart == null) {
+                // RFC 5545 all-day: date values, DTEND exclusive.
+                val basic = DateTimeFormatter.BASIC_ISO_DATE
+                appendLine("DTSTART;VALUE=DATE:${event.date.format(basic)}")
+                appendLine("DTEND;VALUE=DATE:${event.date.plusDays(1).format(basic)}")
+            } else {
+                val startUtc = startOf(event).withZoneSameInstant(ZoneId.of("UTC"))
+                val endUtc = endOf(event).withZoneSameInstant(ZoneId.of("UTC"))
+                appendLine("DTSTART:${startUtc.format(UTC_STAMP)}")
+                appendLine("DTEND:${endUtc.format(UTC_STAMP)}")
+            }
             appendLine("SUMMARY:${esc(event.name)}")
             if (event.venue.isNotBlank()) appendLine("LOCATION:${esc(event.venue)}")
             appendLine("DESCRIPTION:${esc(bodyOf(event))}")
