@@ -62,6 +62,12 @@ interface EventDao {
     @Query("DELETE FROM favorites WHERE eventId = :eventId")
     suspend fun removeFavorite(eventId: String)
 
+    /** Favorites whose event left the feed (product decision 2026-08-17:
+     *  purge, and let the UI show a notice). Subquery keeps it clear of the
+     *  SQLite bind-variable cap. Returns the number purged. */
+    @Query("DELETE FROM favorites WHERE eventId NOT IN (SELECT id FROM events)")
+    suspend fun purgeOrphanFavorites(): Int
+
     // ── Sync: full-feed replace that never clobbers favorites ───────────────
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

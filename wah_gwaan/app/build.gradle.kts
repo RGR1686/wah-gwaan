@@ -15,22 +15,22 @@ android {
         applicationId = "bs.wahgwaan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.1"
+        versionCode = 7
+        versionName = "0.6.0"
 
-        // Point this at wherever the ETL pipeline publishes events.json
-        // (GitHub Pages / Cloudflare Pages / Firebase Hosting). The path is
-        // the directory that CONTAINS events.json, with a trailing slash.
+        // Live feed: GitHub Pages, republished every 6 hours by
+        // .github/workflows/scrape-and-publish.yml (directory that CONTAINS
+        // events.json, trailing slash required).
         buildConfigField("String", "FEED_BASE_URL",
-            "\"https://YOUR-CDN-HOST.example.com/feed/\"")
+            "\"https://rgr1686.github.io/wah-gwaan/\"")
     }
 
     buildTypes {
         debug {
-            // Device testing without a CDN: `adb reverse tcp:8765 tcp:8765`
-            // maps the phone's localhost:8765 to this PC, where
-            // `python -m http.server 8765` serves events.json.
-            buildConfigField("String", "FEED_BASE_URL", "\"http://localhost:8765/\"")
+            // Debug rides the live feed too. For offline device testing
+            // against a local scrape, temporarily switch back to
+            // "http://localhost:8765/" + `adb reverse tcp:8765 tcp:8765`
+            // + `python -m http.server 8765` in a dir holding events.json.
         }
         release {
             isMinifyEnabled = true
