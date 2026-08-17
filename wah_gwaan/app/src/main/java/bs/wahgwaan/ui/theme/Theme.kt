@@ -57,6 +57,8 @@ val EventCategory.accent: Color
         EventCategory.JUNKANOO_CULTURAL -> Color(0xFFE65100)
         EventCategory.REGATTA_MARITIME -> Color(0xFF0277BD)
         EventCategory.FARMERS_CRAFT_MARKET -> Color(0xFF558B2F)
+        EventCategory.FAIR_POPUP -> Color(0xFF9E9D24)
+        EventCategory.CONFERENCE_EXPO -> Color(0xFF1565C0)
         EventCategory.CLUB_PROMOTION -> Color(0xFF7B1FA2)
         EventCategory.FESTIVAL -> Color(0xFFAD1457)
         EventCategory.CONCERT_LIVE_MUSIC -> Color(0xFF6A1B9A)

@@ -98,6 +98,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
+from functools import lru_cache
 from typing import Callable, Iterable, Optional
 from urllib.parse import urljoin, urlparse
 
@@ -151,7 +152,9 @@ OTHER_ISLAND_KEYWORDS = [
     "governor's harbour", "port lucaya",
 ]
 
-# Category inference: first matching keyword group wins (order matters)
+# Category inference: first matching keyword group wins (order matters).
+# Plain entries match as substrings; "re:" entries are regexes — use those for
+# short words ("fair") that would otherwise fire inside longer ones ("affair").
 CATEGORY_RULES: list[tuple[str, list[str]]] = [
     ("Junkanoo / Cultural",  ["junkanoo", "heritage", "cultural", "independence",
                               "emancipation", "goombay", "rake and scrape",
@@ -163,6 +166,14 @@ CATEGORY_RULES: list[tuple[str, list[str]]] = [
                               "vendor market", "vendors market", "pop-up market",
                               "popup market", "artisan market", "green market",
                               "fresh market", "island market", "makers market"]),
+    ("Conference / Expo",    ["conference", "summit", "convention", "trade show",
+                              "tradeshow", "symposium", "congress", "job fair",
+                              "career fair", "recruitment fair", "college fair",
+                              r"re:\bexpo(?:sition)?s?\b"]),
+    ("Fair / Popup",         ["funfair", "fun fair", "bazaar", "open house",
+                              "pop-up", "popup", "pop up", "sip and shop",
+                              "sip & shop", "vendor showcase", "shopping village",
+                              r"re:\bfairs?\b"]),
     ("Festival",             ["festival", "fest", "carnival", "fete", "j'ouvert",
                               "jouvert", "crop over", "soca"]),
     ("Concert / Live Music", ["concert", "live music", "album", "in concert",
@@ -189,8 +200,8 @@ CATEGORY_RULES: list[tuple[str, list[str]]] = [
     ("Arts & Theatre",       ["theatre", "theater", "art ", "exhibit", "gallery",
                               "play", "musical", "dance", "ballet", "poetry",
                               "spoken word"]),
-    ("Business / Networking", ["conference", "summit", "networking", "expo",
-                               "seminar", "workshop", "symposium", "awards"]),
+    ("Business / Networking", ["networking", "seminar", "workshop", "awards",
+                               "mixer", "masterclass", "master class"]),
     ("Faith & Community",    ["church", "worship", "prayer", "revival",
                               "community", "charity", "fundraiser", "gala"]),
 ]
@@ -398,10 +409,16 @@ def make_soup(html: str) -> BeautifulSoup:
 # PARSING HELPERS
 # =============================================================================
 
-def clean_text(value: Optional[str]) -> str:
+def clean_text(value) -> str:
     if not value:
         return ""
-    return re.sub(r"\s+", " ", str(value)).strip()
+    # Embedded-JSON fields are not always plain strings: Eventbrite ships
+    # {'text': ...} rich-text wrappers, JSON-LD allows single-element lists.
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    if isinstance(value, dict):
+        value = value.get("text") or value.get("name") or value.get("@value") or ""
+    return re.sub(r"\s+", " ", htmllib.unescape(str(value))).strip()
 
 
 def strip_html(value: Optional[str]) -> str:
@@ -483,11 +500,24 @@ def parse_price(text: str) -> str:
     return ""
 
 
+@lru_cache(maxsize=None)
+def _category_matcher(kw: str):
+    if kw.startswith("re:"):
+        return re.compile(kw[3:], re.IGNORECASE).search
+    return lambda blob, _kw=kw: _kw in blob
+
+
 def infer_category(*texts: str) -> str:
-    blob = " ".join(t.lower() for t in texts if t)
-    for category, keywords in CATEGORY_RULES:
-        if any(kw in blob for kw in keywords):
-            return category
+    """Earlier texts are more authoritative: callers pass the event NAME first,
+    so 'X Festival' stays a festival even when its description name-drops an
+    expo, and descriptions/tags only decide when the name says nothing."""
+    for text in texts:
+        if not text:
+            continue
+        blob = str(text).lower()
+        for category, keywords in CATEGORY_RULES:
+            if any(_category_matcher(kw)(blob) for kw in keywords):
+                return category
     return DEFAULT_CATEGORY
 
 
@@ -1105,6 +1135,12 @@ class EventbriteScraper(BaseScraper):
         "https://www.eventbrite.com/d/bahamas/events/",
         "https://www.eventbrite.com/d/the-bahamas/all-events/",
     ]
+    # Category listings surface conferences/expos/fairs that sit too deep in
+    # the general feed to reach within max_pages. Single page each, optional.
+    EXTRA_LISTINGS = [
+        "https://www.eventbrite.com/d/bahamas/business--events/",
+        "https://www.eventbrite.com/d/bahamas/conferences/",
+    ]
 
     def scrape(self) -> list[Event]:
         events: list[Event] = []
@@ -1137,6 +1173,13 @@ class EventbriteScraper(BaseScraper):
                 self.status.pages_fetched += 1
                 if len({e.source_url for e in events}) == before:
                     break
+
+        for extra in self.EXTRA_LISTINGS:
+            resp = self.engine.get(extra, referer=self.BASE)
+            if resp is None:
+                continue
+            events.extend(self._parse_listing_response(resp.text, extra))
+            self.status.pages_fetched += 1
 
         return dedupe_by_url(events)
 
@@ -1209,6 +1252,11 @@ class AllEventsInScraper(BaseScraper):
         "https://allevents.in/nassau/sports",
         "https://allevents.in/nassau/art",
         "https://allevents.in/nassau/business",
+        # Conference / fair / popup coverage — unknown slugs 404 harmlessly
+        # (soup=None -> skipped) under the per-source error isolation.
+        "https://allevents.in/nassau/conferences",
+        "https://allevents.in/nassau/exhibitions",
+        "https://allevents.in/nassau/trade-shows",
     ]
 
     def scrape(self) -> list[Event]:

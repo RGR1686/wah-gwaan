@@ -81,4 +81,18 @@ class EventMappingTest {
 
     @Test fun `no price data means blank label`() =
         assertEquals("", event().priceLabel)
+
+    // ── category slugs (must mirror the ETL pipeline's taxonomy) ────────────
+
+    @Test fun `pipeline slugs resolve to their categories`() {
+        assertEquals(EventCategory.CONFERENCE_EXPO,
+            EventCategory.fromSlug("CONFERENCE_EXPO"))
+        assertEquals(EventCategory.FAIR_POPUP,
+            EventCategory.fromSlug("FAIR_POPUP"))
+        assertEquals(EventCategory.FARMERS_CRAFT_MARKET,
+            EventCategory.fromSlug("farmers_craft_market"))
+    }
+
+    @Test fun `unknown slug degrades to UNKNOWN not a crash`() =
+        assertEquals(EventCategory.UNKNOWN, EventCategory.fromSlug("HOT_AIR_BALLOON"))
 }
